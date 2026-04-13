@@ -1,0 +1,87 @@
+name: CI/CD Pipeline
+
+on:
+  pull_request:
+    branches:
+      - main
+
+  push:
+    branches:
+      - main
+
+jobs:
+  
+  build:
+    name: "Build"
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup environment
+        uses: ./.github/actions/setup-python-env
+        
+      - name: Notify result
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "BUILD PASSED"
+          else
+            echo "BUILD FAILED -- Fix syntax errors before proceeding."
+          fi
+          
+  test:
+    name: "Run Tests"
+    runs-on: ubuntu-latest
+    needs: [build]
+
+    steps:    
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-python-env
+
+      - name: Discover and run all tests
+        run: |
+          echo "Test files discovered:"
+          pytest --collect-only -q 2>/dev/null || true
+          echo ""
+          pytest -v --tb=short
+
+      - name: Notify result
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "ALL TESTS PASSED"
+          else
+            echo "TESTS FAILED -- Fix failing tests before merging."
+          fi
+          
+  deploy:
+    name: "Deploy"
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: github.event_name == 'push'
+    
+    environment:
+      name: staging
+
+    steps:    
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: "0"
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-python-env
+
+      - name: Notify result
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "DEPLOY SUCCESS"
+          else
+            echo "DEPLOY FAILED -- Check logs above for details."
+          fi
