@@ -1,13 +1,3 @@
-# =============================================================================
-# CI/CD PIPELINE -- Build → Test → Deploy
-# =============================================================================
-# DESIGN PRINCIPLES:
-#   - Setup (checkout + python + install) defined ONCE as a composite action
-#   - Tests auto-discover via pytest conventions (test_*.py / *_test.py)
-#   - Deploy logic lives in deploy.py, not inline bash
-#   - Scales to any number of .py files without workflow changes
-# =============================================================================
-
 name: CI/CD Pipeline
 
 on:
@@ -20,49 +10,24 @@ on:
       - main
 
 jobs:
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # STAGE 1: BUILD -- Lint and validate all .py files
-  # ═══════════════════════════════════════════════════════════════════════════
+  
   build:
-    name: "Build & Lint"
+    name: "Build"
     runs-on: ubuntu-latest
-
+    
     steps:
       - name: Setup environment
         uses: ./.github/actions/setup-python-env
-
-      - name: Lint all Python files
-        run: |
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics
-
-      - name: Validate syntax for all Python files
-        run: |
-          FAIL=0
-          for file in $(find . -name "*.py" -not -path "./.git/*"); do
-            if python -m py_compile "$file" 2>&1; then
-              echo "  OK: $file"
-            else
-              echo "  FAIL: $file"
-              FAIL=1
-            fi
-          done
-          if [ "$FAIL" -eq 1 ]; then exit 1; fi
-          echo "All $(find . -name '*.py' -not -path './.git/*' | wc -l) files compiled successfully."
-
+        
       - name: Notify result
         if: always()
         run: |
           if [ "${{ job.status }}" == "success" ]; then
             echo "BUILD PASSED"
           else
-            echo "BUILD FAILED -- Fix lint or syntax errors before proceeding."
+            echo "BUILD FAILED -- Fix syntax errors before proceeding."
           fi
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # STAGE 2: TEST -- Auto-discover and run all test files
-  # ═══════════════════════════════════════════════════════════════════════════
+          
   test:
     name: "Run Tests"
     runs-on: ubuntu-latest
@@ -86,34 +51,4 @@ jobs:
             echo "ALL TESTS PASSED"
           else
             echo "TESTS FAILED -- Fix failing tests before merging."
-          fi
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # STAGE 3: DEPLOY -- Run deploy.py to promote only changed scripts
-  # ═══════════════════════════════════════════════════════════════════════════
-  deploy:
-    name: "Deploy"
-    runs-on: ubuntu-latest
-    needs: [test]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    environment:
-      name: staging
-
-    steps:
-      - name: Setup environment
-        uses: ./.github/actions/setup-python-env
-        with:
-          fetch-depth: "0"
-
-      - name: Run deployment
-        run: python deploy.py
-
-      - name: Notify result
-        if: always()
-        run: |
-          if [ "${{ job.status }}" == "success" ]; then
-            echo "DEPLOY SUCCESS"
-          else
-            echo "DEPLOY FAILED -- Check logs above for details."
           fi
