@@ -1,35 +1,28 @@
 # =============================================================================
 # Reusable Composite Action: Setup Python Environment
 # =============================================================================
-# Centralizes the repeated checkout + python setup + pip install pattern.
-# Every job calls this ONCE instead of duplicating 3 steps each time.
+# Centralizes the repeated python setup + pip install pattern.
+# IMPORTANT: actions/checkout MUST run before this action, because GitHub
+# needs the repo cloned first to find this action.yml file.
 #
 # Usage in a workflow job:
 #   steps:
+#     - uses: actions/checkout@v4       ← must come first
 #     - uses: ./.github/actions/setup-python-env
 # =============================================================================
 
 name: "Setup Python Environment"
-description: "Checkout code, install Python, and install pip dependencies"
+description: "Install Python and pip dependencies (checkout must happen first)"
 
 inputs:
   python-version:
     description: "Python version to install"
     required: false
     default: "3.10"
-  fetch-depth:
-    description: "Number of commits to fetch (0 = full history)"
-    required: false
-    default: "1"
 
 runs:
   using: "composite"
   steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: ${{ inputs.fetch-depth }}
-
     - name: Set up Python ${{ inputs.python-version }}
       uses: actions/setup-python@v5
       with:
@@ -39,5 +32,7 @@ runs:
     - name: Install dependencies
       shell: bash
       run: |
+        python --version
+        pip --version
         python -m pip install --upgrade pip
         pip install -r requirements.txt
